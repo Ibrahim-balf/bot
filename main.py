@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 
 # 1. ضع التوكن الخاص بك هنا
-API_TOKEN = 'ضع_هنا_توكن_بوتك'
+API_TOKEN = '6759608260:AAE5BrVUBRJv2xVNwBNcXfx75-QQUPTZ5Ms'
 
 # 2. ضع الـ ID الخاص بك (الذي حصلت عليه من الخطوة 1)
 ADMIN_ID = 6556184974  # استبدل هذا الرقم برقم الـ ID الخاص بك
