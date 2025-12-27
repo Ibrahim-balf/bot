@@ -4,86 +4,85 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# --- الإعدادات ---
-TOKEN = "6759608260:AAECDG35CuB6l2_uIaJZCnM5inidwGnINkw"
-ADMIN_ID = 6556184974  # تأكد أن هذا هو معرفك الصحيح
+# --- إعدادات أساسية ---
+# تأكد من وضع التوكن الجديد هنا أو في إعدادات ريندر
+TOKEN = "6759608260:AAE5BrVUBRJv2xVNwBNcXfx75-QQUPTZ5Ms"
+ADMIN_ID = 6556184974
 DATABASE_URL = "postgresql://bot_factory_db_l19m_user:mX3DiuVVjL17eaUHOTZaJntNfexwP13v@dpg-d57p2hu3jp1c73b3op5g-a/bot_factory_db_l19m"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-def get_db_connection(): return psycopg2.connect(DATABASE_URL)
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
 
-# --- 1. لوحة الأدمن (المطور) ---
-def admin_keyboard():
+# --- لوحة المطور (الأدمن) ---
+def get_admin_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 إعادة تشغيل السيرفر", callback_data="reboot_sys")],
-        [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="stats_sys")],
-        [InlineKeyboardButton(text="🧹 تنظيف التضارب", callback_data="clear_conf")],
-        [InlineKeyboardButton(text="🔙 خروج", callback_data="close_panel")]
+        [InlineKeyboardButton(text="🔄 ريستارت السيرفر", callback_data="reboot_all")],
+        [InlineKeyboardButton(text="🧹 تنظيف التضارب", callback_data="fix_conflict")],
+        [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="get_stats")]
     ])
 
-# --- 2. لوحة المستخدم (صاحب البوت) ---
-def user_keyboard(has_bot):
+# --- لوحة المستخدم (صاحب البوت) ---
+def get_user_panel(has_bot):
     buttons = []
     if has_bot:
-        buttons.append([InlineKeyboardButton(text="🎮 إدارة بوطي", callback_data="manage_bot")])
-        buttons.append([InlineKeyboardButton(text="🗑 حذف البوت", callback_data="del_bot")])
+        buttons.append([InlineKeyboardButton(text="📝 تغيير الترحيب", callback_data="edit_welcome")])
+        buttons.append([InlineKeyboardButton(text="📢 إذاعة للمستخدمين", callback_data="user_broadcast")])
+        buttons.append([InlineKeyboardButton(text="🗑 حذف بوطي", callback_data="del_my_bot")])
     else:
-        buttons.append([InlineKeyboardButton(text="➕ صنع بوت جديد", callback_data="create_bot")])
+        buttons.append([InlineKeyboardButton(text="➕ صنع بوت تواصل", callback_data="create_new_bot")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# --- المعالجات (Handlers) ---
+# --- المعالجات الرئيسية ---
 
 @dp.message(Command("start"))
-async def start_cmd(message: Message):
+async def start_handler(message: Message):
     uid = message.from_user.id
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute('SELECT token FROM sub_bots WHERE owner_id = %s', (uid,))
-    has_bot = cur.fetchone() is not None
+    has_bot = cur.fetchone()
     cur.close(); conn.close()
-    
-    text = "🤖 أهلاً بك في مصنع البوتات.\n\n"
+
+    text = "🤖 **مرحباً بك في المصنع الذكي**\n"
     if uid == ADMIN_ID:
-        text += "🛠 أنت المطور، يمكنك استخدام /admin لفتح لوحة التحكم."
+        text += "\n🛠 أنت المطور، استخدم /admin للتحكم."
     
-    await message.answer(text, reply_markup=user_keyboard(has_bot))
+    await message.answer(text, reply_markup=get_user_panel(has_bot), parse_mode="Markdown")
 
 @dp.message(Command("admin"))
-async def admin_cmd(message: Message):
+async def admin_handler(message: Message):
     if message.from_user.id == ADMIN_ID:
-        await message.answer("🛠 **لوحة تحكم المطور السيادية**", reply_markup=admin_keyboard())
+        await message.answer("🛠 لوحة التحكم السيادية:", reply_markup=get_admin_kb())
 
-# --- تفعيل الأزرار (Actions) ---
+# --- أفعال الأزرار (Actions) ---
 
-@dp.callback_query(F.data == "reboot_sys")
-async def action_reboot(call: CallbackQuery):
+@dp.callback_query(F.data == "reboot_all")
+async def reboot_action(call: CallbackQuery):
     if call.from_user.id != ADMIN_ID: return
-    await call.message.edit_text("🔄 جاري إعادة التشغيل الآن...")
+    await call.message.edit_text("🔄 جاري إعادة تشغيل النظام بالكامل...")
     os.execl(sys.executable, sys.executable, *sys.argv)
 
-@dp.callback_query(F.data == "clear_conf")
-async def action_clear(call: CallbackQuery):
+@dp.callback_query(F.data == "fix_conflict")
+async def fix_action(call: CallbackQuery):
     await bot.delete_webhook(drop_pending_updates=True)
-    await call.answer("🧹 تم تنظيف التضارب بنجاح!", show_alert=True)
+    await call.answer("🧹 تم تنظيف الجلسات وإسقاط الرسائل القديمة!", show_alert=True)
 
-@dp.callback_query(F.data == "stats_sys")
-async def action_stats(call: CallbackQuery):
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute('SELECT COUNT(*) FROM sub_bots'); count = cur.fetchone()[0]
-    cur.close(); conn.close()
-    await call.answer(f"📊 عدد البوتات المصنوعة: {count}", show_alert=True)
+@dp.callback_query(F.data == "edit_welcome")
+async def edit_welcome_action(call: CallbackQuery):
+    await call.message.answer("📝 أرسل الآن نص الترحيب الجديد لبوتك:")
+    # هنا تضع حالة الـ FSM لاستقبال النص كما فعلنا سابقاً
 
-@dp.callback_query(F.data == "close_panel")
-async def action_close(call: CallbackQuery):
-    await call.message.delete()
-
-# --- التشغيل ---
+# --- التشغيل النهائي المضمون ---
 async def main():
-    # تنظيف أي تضارب قديم فور التشغيل
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("Bot is started and Keyboards are active!")
-    await dp.start_polling(bot, skip_updates=True)
+    try:
+        # هذه الخطوة ستمسح أي تضارب (Conflict) وتتأكد من التوكن
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("🚀 البوت انطلق بنجاح!")
+        await dp.start_polling(bot, skip_updates=True)
+    except Exception as e:
+        print(f"❌ خطأ حرج: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
