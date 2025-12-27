@@ -27,8 +27,8 @@ logging.basicConfig(level=logging.INFO)
 class States(StatesGroup):
     waiting_for_token = State()
     waiting_for_vip_id = State()
-    waiting_for_welcome_msg = State() # تُستخدم داخل البوت الفرعي
-    waiting_for_broadcast = State()   # تُستخدم داخل البوت الفرعي
+    waiting_for_welcome_msg = State() 
+    waiting_for_broadcast = State()   
 
 # --- قاعدة البيانات ---
 def get_db_connection(): return psycopg2.connect(DATABASE_URL)
@@ -45,24 +45,28 @@ def init_db():
     cur.execute('CREATE TABLE IF NOT EXISTS bot_clients (bot_owner_id BIGINT, client_id BIGINT, UNIQUE(bot_owner_id, client_id));')
     conn.commit(); cur.close(); conn.close()
 
-# --- منطق البوتات المصنوعة (Sub-Bots) مع لوحة داخلية ---
+# --- منطق البوتات المصنوعة (Sub-Bots) ---
 async def start_sub_bot(token, owner_id):
     try:
         s_bot = Bot(token=token)
         s_dp = Dispatcher(storage=MemoryStorage())
+        
+        # جلب معلومات البوت الأساسي لمرة واحدة
+        main_bot_info = await bot.get_me()
+        main_bot_username = main_bot_info.username
 
         def get_sub_control_panel():
             return InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="📝 تغيير رسالة الترحيب", callback_data="sub_set_welcome")],
                 [InlineKeyboardButton(text="📢 إذاعة للمشتركين", callback_data="sub_broadcast")],
                 [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="sub_stats")],
-                [InlineKeyboardButton(text="⚙️ إدارة من المصنع", url=f"https://t.me/{(await bot.get_me()).username}")]
+                [InlineKeyboardButton(text="⚙️ إدارة من المصنع", url=f"https://t.me/{main_bot_username}")]
             ])
 
         @s_dp.message(Command("start"))
         async def s_start(m: Message):
             if m.from_user.id == owner_id:
-                await m.answer("👋 أهلاً بك يا مالك البوت في لوحة تحكمك الداخلية:\nيمكنك إدارة بوتك بالكامل من هنا.", 
+                await m.answer("👋 أهلاً بك يا مالك البوت في لوحة تحكمك الداخلية:", 
                                reply_markup=get_sub_control_panel())
             else:
                 conn = get_db_connection(); cur = conn.cursor()
@@ -94,10 +98,11 @@ async def start_sub_bot(token, owner_id):
 
         @s_dp.callback_query(F.data == "sub_broadcast")
         async def s_br_req(call: types.CallbackQuery, state: FSMContext):
-            # تحقق VIP من قاعدة البيانات الأساسية
             conn = get_db_connection(); cur = conn.cursor()
             cur.execute('SELECT is_vip FROM users WHERE user_id = %s', (owner_id,))
-            is_vip = cur.fetchone()[0]; cur.close(); conn.close()
+            res = cur.fetchone()
+            is_vip = res[0] if res else False
+            cur.close(); conn.close()
             if not is_vip: return await call.answer("❌ ميزة الإذاعة للـ VIP فقط!", show_alert=True)
             await call.message.answer("📢 أرسل الرسالة التي تريد إذاعتها لجميع مشتركيك:"); await state.set_state(States.waiting_for_broadcast); await call.answer()
 
@@ -124,9 +129,10 @@ async def start_sub_bot(token, owner_id):
                 except: await m.answer("❌ تعذر الرد.")
 
         await s_dp.start_polling(s_bot)
-    except: pass
+    except Exception as e:
+        logging.error(f"Error in sub-bot {owner_id}: {e}")
 
-# --- منطق المصنع (البوت الأساسي) ---
+# --- منطق المصنع ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     uid = message.from_user.id
@@ -140,8 +146,7 @@ async def cmd_start(message: Message):
     if has_bot:
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗑 حذف بـوتي", callback_data="delete_bot")],
-            [InlineKeyboardButton(text="⭐ ترقية لـ VIP", callback_data="buy_vip")],
-            [InlineKeyboardButton(text="🤖 اذهب لبوتك", url=f"https://t.me/{(await bot.get_me()).username}")] # سيتم استبداله بيوزر بوطه
+            [InlineKeyboardButton(text="⭐ ترقية لـ VIP", callback_data="buy_vip")]
         ])
         await message.answer(f"🛠 **إدارة حسابك في المصنع**\nوضع الحساب: {'VIP ⭐' if is_vip else 'مجاني 🆓'}\n\nملاحظة: إدارة البوت أصبحت الآن من داخل بوطه مباشرة!", reply_markup=kb)
     else:
@@ -155,29 +160,30 @@ async def m_bot(call: types.CallbackQuery, state: FSMContext):
 @dp.message(States.waiting_for_token)
 async def save_bot(message: Message, state: FSMContext):
     token = message.text.strip()
-    res = requests.get(f"https://api.telegram.org/bot{token}/getMe").json()
-    if not res.get("ok"): return await message.answer("❌ التوكن خاطئ!")
-    
-    conn = get_db_connection(); cur = conn.cursor()
-    cur.execute('INSERT INTO sub_bots (owner_id, token) VALUES (%s, %s) ON CONFLICT (owner_id) DO UPDATE SET token = %s', (message.from_user.id, token, token))
-    conn.commit(); cur.close(); conn.close()
-    
-    await message.answer(f"✅ تم تشغيل بوتك: @{res['result']['username']}\n\nقم بالدخول إليه الآن لتجد لوحة التحكم!")
-    asyncio.create_task(start_sub_bot(token, message.from_user.id))
-    await state.clear()
+    try:
+        res = requests.get(f"https://api.telegram.org/bot{token}/getMe").json()
+        if not res.get("ok"): return await message.answer("❌ التوكن خاطئ!")
+        
+        conn = get_db_connection(); cur = conn.cursor()
+        cur.execute('INSERT INTO sub_bots (owner_id, token) VALUES (%s, %s) ON CONFLICT (owner_id) DO UPDATE SET token = %s', (message.from_user.id, token, token))
+        conn.commit(); cur.close(); conn.close()
+        
+        await message.answer(f"✅ تم تشغيل بوتك: @{res['result']['username']}\n\nقم بالدخول إليه الآن لتجد لوحة التحكم!")
+        asyncio.create_task(start_sub_bot(token, message.from_user.id))
+        await state.clear()
+    except: await message.answer("❌ حدث خطأ في الاتصال.")
 
 @dp.callback_query(F.data == "delete_bot")
 async def del_bot(call: types.CallbackQuery):
     conn = get_db_connection(); cur = conn.cursor()
     cur.execute('DELETE FROM sub_bots WHERE owner_id = %s', (call.from_user.id,))
     conn.commit(); cur.close(); conn.close()
-    await call.message.edit_text("✅ تم حذف بوتك. يمكنك الآن إنشاء بوت جديد بنوع مختلف."); await call.answer()
+    await call.message.edit_text("✅ تم حذف بوتك بنجاح."); await call.answer()
 
-# --- أوامر الأدمن (تفعيل VIP) ---
 @dp.message(Command("setvip"))
 async def admin_vip(message: Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
-        await message.answer("أرسل ID المستخدم لترقيته:"); await state.set_state(States.waiting_for_vip_id)
+        await message.answer("أرسل ID المستخدم لترقيته للـ VIP:"); await state.set_state(States.waiting_for_vip_id)
 
 @dp.message(States.waiting_for_vip_id)
 async def process_vip(message: Message, state: FSMContext):
@@ -185,8 +191,8 @@ async def process_vip(message: Message, state: FSMContext):
         conn = get_db_connection(); cur = conn.cursor()
         cur.execute('UPDATE users SET is_vip = TRUE WHERE user_id = %s', (int(message.text),))
         conn.commit(); cur.close(); conn.close()
-        await message.answer("✅ تم التفعيل."); await state.clear()
-    except: await message.answer("❌ خطأ."); await state.clear()
+        await message.answer("✅ تم التفعيل بنجاح."); await state.clear()
+    except: await message.answer("❌ خطأ في الـ ID."); await state.clear()
 
 # --- التشغيل الرئيسي ---
 async def main():
