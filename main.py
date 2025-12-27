@@ -15,7 +15,7 @@ def home(): return "Admin Panel: Online"
 def run_web(): app.run(host='0.0.0.0', port=8080)
 
 # --- 2. الإعدادات ---
-TOKEN = "6759608260:AAE5BrVUBRJv2xVNwBNcXfx75-QQUPTZ5Ms"
+TOKEN = "6759608260:AAEGMVykzcy1YJ93T362f1T6P3HxVKRrVzk"
 ADMIN_ID = 6556184974
 DATABASE_URL = "postgresql://bot_factory_db_l19m_user:mX3DiuVVjL17eaUHOTZaJntNfexwP13v@dpg-d57p2hu3jp1c73b3op5g-a/bot_factory_db_l19m"
 
