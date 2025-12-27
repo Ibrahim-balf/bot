@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.storage.memory import MemoryStorage
 
 # --- الإعدادات ---
-TOKEN = "6759608260:AAE5BrVUBRJv2xVNwBNcXfx75-QQUPTZ5Ms"
+TOKEN = "6759608260:AAECDG35CuB6l2_uIaJZCnM5inidwGnINkw"
 ADMIN_ID = 6556184974  # تأكد أن هذا هو معرفك الصحيح
 DATABASE_URL = "postgresql://bot_factory_db_l19m_user:mX3DiuVVjL17eaUHOTZaJntNfexwP13v@dpg-d57p2hu3jp1c73b3op5g-a/bot_factory_db_l19m"
 
