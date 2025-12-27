@@ -27,8 +27,8 @@ def keep_alive():
 # --- الإعدادات الأساسية ---
 # اسحب القيم من إعدادات ريندر أو ضعها هنا مباشرة
 TOKEN = os.getenv("BOT_TOKEN", "6759608260:AAE5BrVUBRJv2xVNwBNcXfx75-QQUPTZ5Ms")
-DATABASE_URL = os.getenv("postgresql://bot_factory_db_l19m_user:mX3DiuVVjL17eaUHOTZaJntNfexwP13v@dpg-d57p2hu3jp1c73b3op5g-a/bot_factory_db_l19m", "ضع_رابط_قاعدة_بيانات_postgres_هنا")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "6556184974")) # استبدل بالـ ID الخاص بك
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bot_factory_db_l19m_user:mX3DiuVVjL17eaUHOTZaJntNfexwP13v@dpg-d57p2hu3jp1c73b3op5g-a/bot_factory_db_l19m")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "6556184974"))الخاص بك
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
